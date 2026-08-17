@@ -14,8 +14,9 @@ jobs:
         timeout-minutes: 15
 
         strategy:
-           matrix:
-             arch: [ x64 ]
+            fail-fast: false
+            matrix:
+                arch: [x64, ARM64]
 
         steps:
             - name: Checkout
@@ -42,7 +43,7 @@ jobs:
             - name: Setup MSVC
               run: |
                 $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-                $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+                $vsPath = & $vswhere -latest -products * -property installationPath
                 if (-not $vsPath) { throw "Could not find a Visual Studio installation" }
                 "VS=$vsPath"
                 "VS=$vsPath" >> $env:GITHUB_ENV
@@ -50,18 +51,45 @@ jobs:
             - name: Build exe
               shell: cmd
               run: |
-                cmake -Bbuild -G "Visual Studio 18 2026" -A ${{ matrix.arch }}
+                cmake -B build -G "Visual Studio 18 2026" -A ${{ matrix.arch }}
                 cmake --build build --config Release
 
             - name: Build MSI
-              run:  cpack --config build/CPackConfig.cmake
+              run: cpack --config build/CPackConfig.cmake
+
+            - name: Stage release files
+              shell: pwsh
+              run: |
+                  New-Item -ItemType Directory -Force dist | Out-Null
+                  Copy-Item "build/bin/studio-brightness-plusplus.exe" "dist/studio-brightness-plusplus-${{ matrix.arch }}.exe"
+                  Get-ChildItem "build/bin" -Filter "studio-brightness-plusplus-*.msi" | ForEach-Object {
+                      Copy-Item $_.FullName "dist/studio-brightness-plusplus-${{ matrix.arch }}.msi"
+                  }
+
+            - name: Upload release artifacts
+              uses: actions/upload-artifact@v7
+              with:
+                  name: studio-brightness-plusplus-${{ matrix.arch }}
+                  path: dist/**
+                  if-no-files-found: error
+
+    release:
+        needs: build-release
+        runs-on: ubuntu-latest
+        if: startsWith(github.ref, 'refs/tags/')
+
+        steps:
+            - name: Download release artifacts
+              uses: actions/download-artifact@v7
+              with:
+                  path: dist
 
             - name: Create release
               uses: softprops/action-gh-release@v3
               with:
                   files: |
-                      build/bin/studio-brightness-plusplus-*.msi
-                      build/bin/studio-brightness-plusplus.exe
+                      dist/**/studio-brightness-plusplus-*.exe
+                      dist/**/studio-brightness-plusplus-*.msi
                   # A tag containing a hyphen (v2.2.0-beta.1) is a pre-release; v2.2.0 is stable.
                   prerelease: ${{ contains(github.ref_name, '-') }}
               env:
