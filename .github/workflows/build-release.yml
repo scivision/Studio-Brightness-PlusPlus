@@ -1,5 +1,8 @@
 name: Build and upload release
 
+permissions:
+    contents: write
+
 on:
     push:
         tags:
@@ -35,7 +38,15 @@ jobs:
                   wix eula accept wix7
                   wix extension add --global WixToolset.UI.wixext
 
-            - uses: ilammy/msvc-dev-cmd@v1
+            # from https://github.com/libass/libass/blob/0.17.5/.github/workflows/meson.yml#L118-L125
+            - name: Setup MSVC
+              run: |
+                $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+                $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+                if (-not $vsPath) { throw "Could not find a Visual Studio installation" }
+                "VS=$vsPath"
+                "VS=$vsPath" >> $env:GITHUB_ENV
+
             - name: Build exe
               shell: cmd
               run: |
