@@ -10,7 +10,7 @@ jobs:
         runs-on: windows-2025
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
               with:
                   persist-credentials: true
                   fetch-depth: 0
@@ -35,7 +35,7 @@ jobs:
                   ./tools/build-msi.ps1
 
             - name: Create release
-              uses: softprops/action-gh-release@v2
+              uses: softprops/action-gh-release@v3
               with:
                   files: |
                       bin/studio-brightness-plusplus-*.msi
